@@ -1,0 +1,9 @@
+cron:
+- description: put users to db
+  url: /updateuserfavotter
+  schedule: every 5 minutes
+- description: put users to db
+  url: /updateuser
+  schedule: every 1 hours
+
+
