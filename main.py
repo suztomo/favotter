@@ -28,8 +28,8 @@ sys.path.insert(0, join_path(APP_DIRECTORY, 'third_party'))
 import feedparser
 
 from models import Tuser
-from models import countusers
 from models import get_tuser_count
+from models import users_to_fav
 from delete_handler import DeleteAllUsersHandler
 from updateuser_handler import UpdateUserFavotter
 from updateuser_handler import UpdateUserTwitterSearch
@@ -47,13 +47,11 @@ class MainHandler(webapp.RequestHandler):
 class UpdateFavHandler(webapp.RequestHandler):
     def get(self):
         debug("putfav_mae")
-        tuser = Tuser(uid="9581222",
-                      name="suztomo",
-                      profile_image="http://s3.amazonaws.com/twitter_production/profile_images/85734855/mari_normal.png",
-                      priority=1)
-        debug('Hello')
-        tuser.putfav()
-        self.response.out.write('hogehoge')
+        tusers = users_to_fav()
+        fav_count = 0
+        for tuser in tusers:
+            fav_count = fav_count + tuser.putfav()
+        self.response.out.write('New %d favs' % fav_count)
 
 
 

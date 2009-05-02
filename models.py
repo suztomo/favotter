@@ -12,10 +12,10 @@ def debug(msg):
     pass
 #    logging.getLogger().debug(msg)
 
-class TuserCount(db.Model):
+class Counter(db.Model):
     """Counter
     """
-    service = db.StringProperty(verbose_name="service name",
+    name = db.StringProperty(verbose_name="counter name",
                                 default="favotter")
     count = db.IntegerProperty(verbose_name="counter",
                                default=0)
@@ -25,12 +25,13 @@ class TuserCount(db.Model):
                                   auto_now_add=True)
 
 def add_tuser_counter(num):
-    counters_query = db.GqlQuery("SELECT * FROM TuserCount LIMIT 1")
+    counters_query = db.GqlQuery("SELECT * FROM Counter WHERE name = :1 LIMIT 1",
+                                 "tuser")
     if counters_query.count() > 0:
         counter = counters_query[0]
     else:
         debug("created new counter")
-        counter = TuserCount()
+        counter = Counter()
     counter.count = counter.count + num
     counter.put()
 
@@ -40,14 +41,36 @@ def get_tuser_count():
         counter = counters_query[0]
     else:
         debug("created new counter")
-        counter = TuserCount()
+        counter = Counter()
     return counter.count
+
+def add_tweet_count(num):
+    counters_query = db.GqlQuery("SELECT * FROM Counter WHERE name = :1 LIMIT 1",
+                                 "tweet")
+    if counters_query.count() > 0:
+        counter = counters_query[0]
+    else:
+        debug("created new counter")
+        counter = Counter(name="tweet")
+    counter.count = counter.count + num
+    counter.put()
+
+def add_fav_count(num):
+    counters_query = db.GqlQuery("SELECT * FROM Counter WHERE name = :1 LIMIT 1",
+                                 "fav")
+    if counters_query.count() > 0:
+        counter = counters_query[0]
+    else:
+        debug("created new counter")
+        counter = Counter(name="fav")
+    counter.count = counter.count + num
+    counter.put()
 
 class Fav(db.Model):
     """A favorite"""
-    tid = db.StringProperty(verbose_name="tweet id (expressed in string)",
+    tweet_url = db.StringProperty(verbose_name="tweet url (expressed in string)",
                             required=True)
-    uid = db.StringProperty(verbose_name="user id (expressed in string)",
+    user_name = db.StringProperty(verbose_name="user name (expressed in string)",
                             required=True)
 
     updated = db.DateTimeProperty(verbose_name="The time this favorite is updated",
@@ -78,26 +101,32 @@ class Tuser(db.Model):
         fav_feed_url = TWITTER_FAV_URL_FORMAT % self.name
         favorites = feedparser.parse(fav_feed_url)
         debug("putfav %d" % len(favorites.entries))
+        fav_count = 0
         for favorite in favorites.entries:
             debug(favorite.title)
-            tweet = Tweet(tid=favorite.id,
-                          text=favorite.title)
-            fav = Fav(tid=tweet.tid,
-                      uid=self.uid)
-#            tweet.put()
-#            fav.put()
+            fav_time = datetime(*(favorite.updated_parsed[:6]))
+            # Pass old favorite
+            if fav_time < self.last_crawl:
+                continue
+            tweet = Tweet(url=favorite.id,
+                          text=favorite.title,
+                          html_text=favorite.title)
+            fav = Fav(tweet_url=favorite.id,
+                      user_name=self.name)
+            tweet.put()
+            fav.put()
+            fav_count = fav_count + 1
+        self.last_crawl = datetime.now()
+        self.put()
+        return fav_count
 
 class Tweet(db.Model):
     """A tweet"""
-    tid = db.StringProperty(verbose_name="tweet id (expressed in string)",
+    url = db.StringProperty(verbose_name="tweet url (expressed in string)",
                             required=True)
     text = db.TextProperty(verbose_name="The tweet",
                            required=True)
-    html_text = db.TextProperty(verbose_name="The tweet as html",
-                                required=True)
-
-    updated = db.DateTimeProperty(verbose_name="The time this tweet is updated",
-                                  auto_now=True)
+    html_text = db.TextProperty(verbose_name="The tweet as html")
     created = db.DateTimeProperty(verbose_name="The time this tweet is created",
                                   auto_now_add=True)
 
@@ -133,3 +162,6 @@ def users_dict_by_names(names):
         dic[user.name] = user
     return dic
 
+def users_to_fav():
+    users = db.GqlQuery("SELECT * FROM Tuser ORDER BY last_crawl ASC LIMIT 2")
+    return users
